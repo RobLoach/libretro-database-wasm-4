@@ -1,0 +1,7 @@
+[submodule "wasm4"]
+	path = wasm4
+	url = https://github.com/aduros/wasm4.git
+	ignore = dirty
+[submodule "database"]
+	path = database
+	url = https://github.com/libretro/libretro-database.git

@@ -1,0 +1,16 @@
+{
+  "name": "libretro-database-wasm-4",
+  "version": "2022.1.16",
+  "description": "WASM-4 database for libretro",
+  "homepage": "https://github.com/robloach/libretro-database-wasm-4",
+  "main": "index.js",
+  "private": true,
+  "scripts": {
+    "test": "node index.js"
+  },
+  "author": "libretro",
+  "license": "MIT",
+  "dependencies": {
+    "crc": "^4.1.0"
+  }
+}
