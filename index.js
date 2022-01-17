@@ -16,6 +16,8 @@ for (let cart of carts) {
     cart.description = cart.title
     cart.developer = cart.author
     cart.homepage = "https://wasm4.org/play/" + cart.slug
+
+    fs.copyFileSync(`wasm4/site/static/carts/${cart.slug}.png`, `thumbs/Named_Titles/${cart.name}.png`)
 }
 
 let output = `

@@ -5,3 +5,8 @@
 [submodule "database"]
 	path = database
 	url = https://github.com/libretro/libretro-database.git
+	ignore = dirty
+[submodule "thumbs"]
+	path = thumbs
+	url = git@github.com:libretro-thumbnails/WASM-4.git
+	ignore = dirty
