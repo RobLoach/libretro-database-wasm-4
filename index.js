@@ -1,23 +1,44 @@
 const crc32 = require('crc/crc32')
 const fs = require('fs')
 const pkg = require('./package.json')
-const carts = require('./wasm4/site/carts')
+const glob = require("glob")
+const frontmatter = require("frontmatter")
+const path = require('path')
+const removeMarkdown = require('markdown-to-text').default
+const sanitizeFilename = require('sanitize-filename')
+
+const mdFiles = glob.sync('wasm4/site/static/carts/*.md')
+let carts = []
+for (let mdFile of mdFiles) {
+    let file = fs.readFileSync(mdFile, 'utf8')
+    let cartData = frontmatter(file)
+
+    let text = removeMarkdown(cartData.content).trim()
+    let cart = {
+        slug: path.basename(mdFile, '.md'),
+        title: text.trim().split('\n')[0].replace('¢', '_'),
+        author: cartData.data.author,
+        description: text
+    }
+    carts.push(cart)
+}
 
 for (let cart of carts) {
-    const file = "wasm4/site/static/carts/" + cart.slug + ".wasm"
-    const fileStat = fs.statSync(file)
-    const data = fs.readFileSync(file)
+    let file = "wasm4/site/static/carts/" + cart.slug + ".wasm"
+    let fileStat = fs.statSync(file)
+    let data = fs.readFileSync(file)
     cart.rom = {
         name: cart.slug + ".wasm",
         crc: crc32(data).toString(16),
         size: fileStat.size
     }
     cart.name = cart.title
-    cart.description = cart.title
+    cart.description = cart.description
     cart.developer = cart.author
     cart.homepage = "https://wasm4.org/play/" + cart.slug
 
-    fs.copyFileSync(`wasm4/site/static/carts/${cart.slug}.png`, `thumbs/Named_Titles/${cart.name}.png`)
+    let cleanName = sanitizeFilename(cart.name, { replacement: '_' })
+    fs.copyFileSync(`wasm4/site/static/carts/${cart.slug}.png`, `thumbs/Named_Titles/${cleanName}.png`)
 }
 
 let output = `
