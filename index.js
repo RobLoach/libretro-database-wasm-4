@@ -6,10 +6,15 @@ const frontmatter = require("frontmatter")
 const path = require('path')
 const removeMarkdown = require('markdown-to-text').default
 const sanitizeFilename = require('sanitize-filename')
+const archiver = require('archiver')
+const dateParser = require('date-format-parse').parse
 
 const mdFiles = glob.sync('wasm4/site/static/carts/*.md')
 let carts = []
 for (let mdFile of mdFiles) {
+    if (path.basename(mdFile) == 'README.md') {
+        continue
+    }
     let file = fs.readFileSync(mdFile, 'utf8')
     let cartData = frontmatter(file)
 
@@ -17,7 +22,7 @@ for (let mdFile of mdFiles) {
     let cart = {
         slug: path.basename(mdFile, '.md'),
         title: text.trim().split('\n')[0].replace('¢', '_'),
-        author: cartData.data.author,
+        author: cartData.data.github,
         description: text
     }
     carts.push(cart)
@@ -33,12 +38,25 @@ for (let cart of carts) {
         size: fileStat.size
     }
     cart.name = cart.title
-    cart.description = cart.description
+    cart.description = cart.description.replace(/\n/g, ' ').replace('"', '\'').replace('  ', ' ').replace(cart.name, '').trim()
+    if (cart.description.length == 0) {
+        cart.description = cart.name
+    }
     cart.developer = cart.author
     cart.homepage = "https://wasm4.org/play/" + cart.slug
 
     let cleanName = sanitizeFilename(cart.name, { replacement: '_' })
     fs.copyFileSync(`wasm4/site/static/carts/${cart.slug}.png`, `thumbs/Named_Titles/${cleanName}.png`)
+
+    // Zip file
+    let output = fs.createWriteStream(`${__dirname}/libretro-content/WASM-4/${cleanName}.zip`);
+    let archive = archiver('zip', {
+        zlib: { level: 9 } // Sets the compression level.
+      });
+    archive.pipe(output)
+    archive.append(data, { name: `${cleanName}.wasm` })
+    archive.append(fs.createReadStream("wasm4/site/static/carts/" + cart.slug + ".md"), { name: `${cleanName}.md` })
+    archive.finalize()
 }
 
 let output = `

@@ -1,15 +1,15 @@
 [submodule "wasm4"]
 	path = wasm4
 	url = https://github.com/aduros/wasm4.git
-	ignore = dirty
 	branch = main
 [submodule "database"]
 	path = database
 	url = https://github.com/libretro/libretro-database.git
-	ignore = dirty
 	branch = master
 [submodule "thumbs"]
 	path = thumbs
 	url = git@github.com:libretro-thumbnails/WASM-4.git
-	ignore = dirty
 	branch = master
+[submodule "libretro-content"]
+	path = libretro-content
+	url = git@github.com:libretro/libretro-content.git
