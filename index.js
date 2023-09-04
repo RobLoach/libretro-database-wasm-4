@@ -9,7 +9,7 @@ const sanitizeFilename = require('sanitize-filename')
 const archiver = require('archiver')
 const dateParser = require('date-format-parse').parse
 
-const mdFiles = glob.sync('wasm4/site/static/carts/*.md')
+const mdFiles = glob.sync('wasm4/site/static/carts/*.md').sort()
 let carts = []
 for (let mdFile of mdFiles) {
     if (path.basename(mdFile) == 'README.md') {
@@ -68,14 +68,23 @@ clrmamepro (
     homepage "${pkg.homepage}"
 )
 `
+
+function cleanDescription(filename) {
+    return sanitizeFilename(filename)
+        .substring(0, 150)
+        .replaceAll("\n", ' ')
+        .replace('Original page on itch.io', '')
+        .trim()
+}
+
 for (let cart of carts) {
     output += `
 game (
     name "${cart.name}"
-    description "${cart.description}"
+    description "${cleanDescription(cart.description)}"
     developer "${cart.developer}"
     homepage "${cart.homepage}"
-    rom ( name "${cart.rom.name}" size "${cart.rom.size}" crc "${cart.rom.crc}" )
+    rom ( name "${cart.rom.name}" size ${cart.rom.size} crc ${cart.rom.crc} )
 )
 `
 }
