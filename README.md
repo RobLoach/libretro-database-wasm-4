@@ -6,5 +6,6 @@ WASM-4 database builder for libretro.
 
 ```
 git submodule update --init
-npm it
+npm install
+npm run build
 ```

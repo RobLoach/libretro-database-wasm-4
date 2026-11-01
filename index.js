@@ -1,92 +1,126 @@
-const crc32 = require('crc/crc32')
 const fs = require('fs')
-const pkg = require('./package.json')
-const glob = require("glob")
-const frontmatter = require("frontmatter")
 const path = require('path')
+const crc32 = require('crc/crc32')
+const matter = require('gray-matter')
 const removeMarkdown = require('markdown-to-text').default
 const sanitizeFilename = require('sanitize-filename')
 const archiver = require('archiver')
-const dateParser = require('date-format-parse').parse
+const pkg = require('./package.json')
 
-const mdFiles = glob.sync('wasm4/site/static/carts/*.md').sort()
-let carts = []
-for (let mdFile of mdFiles) {
-    if (path.basename(mdFile) == 'README.md') {
-        continue
-    }
-    let file = fs.readFileSync(mdFile, 'utf8')
-    let cartData = frontmatter(file)
+const cartsDir = path.join(__dirname, 'wasm4/site/static/carts')
+const thumbsDir = path.join(__dirname, 'thumbs/Named_Titles')
+const contentDir = path.join(__dirname, 'libretro-content/WASM-4')
+const datFile = path.join(__dirname, 'database/dat/WASM-4.dat')
 
-    let text = removeMarkdown(cartData.content).trim()
-    let cart = {
-        slug: path.basename(mdFile, '.md'),
-        title: text.trim().split('\n')[0].replace('¢', '_'),
-        author: cartData.data.github,
-        description: text
-    }
-    carts.push(cart)
+// clrmamepro strings have no escape for quotes, and must stay on one line.
+function datString(str) {
+    return str.replaceAll('"', '\'').replace(/\s+/g, ' ').trim()
 }
 
-for (let cart of carts) {
-    let file = "wasm4/site/static/carts/" + cart.slug + ".wasm"
-    let fileStat = fs.statSync(file)
-    let data = fs.readFileSync(file)
-    cart.rom = {
-        name: cart.slug + ".wasm",
-        crc: crc32(data).toString(16),
-        size: fileStat.size
-    }
-    cart.name = cart.title
-    cart.description = cart.description.replace(/\n/g, ' ').replace('"', '\'').replace('  ', ' ').replace(cart.name, '').trim()
-    if (cart.description.length == 0) {
-        cart.description = cart.name
-    }
-    cart.developer = cart.author
-    cart.homepage = "https://wasm4.org/play/" + cart.slug
-
-    let cleanName = sanitizeFilename(cart.name, { replacement: '_' })
-    fs.copyFileSync(`wasm4/site/static/carts/${cart.slug}.png`, `thumbs/Named_Titles/${cleanName}.png`)
-
-    // Zip file
-    let output = fs.createWriteStream(`${__dirname}/libretro-content/WASM-4/${cleanName}.zip`);
-    let archive = archiver('zip', {
-        zlib: { level: 9 } // Sets the compression level.
-      });
-    archive.pipe(output)
-    archive.append(data, { name: `${cleanName}.wasm` })
-    archive.append(fs.createReadStream("wasm4/site/static/carts/" + cart.slug + ".md"), { name: `${cleanName}.md` })
-    archive.finalize()
-}
-
-let output = `
-clrmamepro (
-	name "WASM-4"
-	description "WASM-4"
-	version "${pkg.version}"
-	author "${pkg.author}"
-    homepage "${pkg.homepage}"
-)
-`
-
-function cleanDescription(filename) {
-    return sanitizeFilename(filename)
+function cleanDescription(text) {
+    return datString(text.replace(/Original page on itch\.io\.?/g, ''))
         .substring(0, 150)
-        .replaceAll("\n", ' ')
-        .replace('Original page on itch.io', '')
         .trim()
 }
 
-for (let cart of carts) {
-    output += `
-game (
-    name "${cart.name}"
-    description "${cleanDescription(cart.description)}"
-    developer "${cart.developer}"
-    homepage "${cart.homepage}"
-    rom ( name "${cart.rom.name}" size ${cart.rom.size} crc ${cart.rom.crc} )
-)
-`
+function writeZip(zipPath, files) {
+    return new Promise((resolve, reject) => {
+        const output = fs.createWriteStream(zipPath)
+        const archive = archiver('zip', { zlib: { level: 9 } })
+        output.on('close', resolve)
+        output.on('error', reject)
+        archive.on('error', reject)
+        archive.on('warning', reject)
+        archive.pipe(output)
+        for (const [name, data] of Object.entries(files)) {
+            archive.append(data, { name })
+        }
+        archive.finalize()
+    })
 }
 
-fs.writeFileSync("database/dat/WASM-4.dat", output.trim())
+// Remove files left behind by carts that no longer exist upstream.
+function removeStale(dir, ext, keep) {
+    for (const file of fs.readdirSync(dir)) {
+        if (file.endsWith(ext) && !keep.has(file)) {
+            console.log(`Removing stale ${path.relative(__dirname, path.join(dir, file))}`)
+            fs.rmSync(path.join(dir, file))
+        }
+    }
+}
+
+async function main() {
+    fs.mkdirSync(thumbsDir, { recursive: true })
+    fs.mkdirSync(contentDir, { recursive: true })
+
+    const mdFiles = fs.readdirSync(cartsDir)
+        .filter(file => file.endsWith('.md') && file !== 'README.md')
+        .sort()
+
+    const now = new Date()
+    const version = `${now.getFullYear()}.${now.getMonth() + 1}.${now.getDate()}`
+    let dat = `clrmamepro (
+\tname "WASM-4"
+\tdescription "WASM-4"
+\tversion "${version}"
+\tauthor "${pkg.author}"
+\thomepage "${pkg.homepage}"
+)
+`
+
+    const usedNames = new Set()
+    const thumbs = new Set()
+    const zips = new Set()
+
+    for (const mdFile of mdFiles) {
+        const slug = path.basename(mdFile, '.md')
+        const md = fs.readFileSync(path.join(cartsDir, mdFile), 'utf8')
+        const wasm = fs.readFileSync(path.join(cartsDir, `${slug}.wasm`))
+        const { data, content } = matter(md)
+
+        const lines = removeMarkdown(content).trim().split('\n')
+        let name = datString(lines[0].replaceAll('¢', '_'))
+        let fileName = sanitizeFilename(name, { replacement: '_' })
+        if (usedNames.has(fileName.toLowerCase())) {
+            console.warn(`Warning: "${name}" is already used, renaming ${slug}`)
+            name = `${name} (${slug})`
+            fileName = sanitizeFilename(name, { replacement: '_' })
+        }
+        usedNames.add(fileName.toLowerCase())
+
+        const description = cleanDescription(lines.slice(1).join(' ')) || name
+        // Authors are "Name <github>, ...", so keep just the names.
+        const developer = data.github || data.author?.replace(/\s*<[^>]*>/g, '').trim()
+        const romName = `${fileName}.wasm`
+        const crc = crc32(wasm).toString(16).padStart(8, '0').toUpperCase()
+
+        fs.copyFileSync(path.join(cartsDir, `${slug}.png`), path.join(thumbsDir, `${fileName}.png`))
+        thumbs.add(`${fileName}.png`)
+
+        await writeZip(path.join(contentDir, `${fileName}.zip`), {
+            [romName]: wasm,
+            [`${fileName}.md`]: md
+        })
+        zips.add(`${fileName}.zip`)
+
+        dat += `
+game (
+\tname "${name}"
+\tdescription "${description}"
+${developer ? `\tdeveloper "${datString(developer)}"\n` : ''}\thomepage "https://wasm4.org/play/${slug}"
+\trom ( name "${romName}" size ${wasm.length} crc ${crc} )
+)
+`
+    }
+
+    removeStale(thumbsDir, '.png', thumbs)
+    removeStale(contentDir, '.zip', zips)
+
+    fs.writeFileSync(datFile, dat.trim() + '\n')
+    console.log(`Wrote ${mdFiles.length} carts to ${path.relative(__dirname, datFile)}`)
+}
+
+main().catch(err => {
+    console.error(err)
+    process.exitCode = 1
+})

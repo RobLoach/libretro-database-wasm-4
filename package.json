@@ -3,24 +3,21 @@
   "version": "2022.2.11",
   "description": "WASM-4 database for libretro",
   "homepage": "https://github.com/robloach/libretro-database-wasm-4",
-  "main": "index.js",
   "private": true,
   "scripts": {
-    "test": "node index.js"
+    "build": "node index.js",
+    "test": "npm run build"
   },
   "author": "libretro",
   "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
   "dependencies": {
-    "archiver": "^6.0.1",
+    "archiver": "^7.0.1",
     "crc": "^4.3.2",
-    "date-format-parse": "^0.2.7",
-    "frontmatter": "^0.0.3",
-    "glob": "^10.3.4",
+    "gray-matter": "^4.0.3",
     "markdown-to-text": "^0.1.1",
-    "remove-whitespace": "^1.1.0",
-    "replace-all-js": "^0.0.8",
-    "sanitize-filename": "^1.6.3",
-    "yaml": "^2.3.2",
-    "yaml-js": "^0.3.1"
+    "sanitize-filename": "^1.6.3"
   }
 }

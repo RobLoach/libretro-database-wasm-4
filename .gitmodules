@@ -13,3 +13,4 @@
 [submodule "libretro-content"]
 	path = libretro-content
 	url = git@github.com:libretro/libretro-content.git
+	branch = master
